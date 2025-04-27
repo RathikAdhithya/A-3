@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Tulip Garden for Tika</title>
+
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+
+<style>
+html,body{margin:0;padding:0;overflow:hidden;background:#000;}
+canvas{display:block;image-rendering:pixelated;}
+#hint{position:fixed;bottom:10px;width:100%;text-align:center;font-family:sans-serif;font-size:14px;color:#fafafa;pointer-events:none;}
+
+#msg{
+position:fixed;left:0;width:100%;
+text-align:center;font-family:'Press Start 2P',monospace;
+font-size:100px;letter-spacing:1px;
+color:#ff3030;
+text-shadow:0 0 16px #000000,0 0 16px #ff3030;
+pointer-events:none;
+opacity:0;transition:opacity .2s;
+}
+</style>
+</head>
+
+<body>
+<div id="hint">Click anywhere on the grass to plant a flower 💗</div>
+<div id="msg"></div>
+
+<!-- single audio element that we’ll treat as a playlist player -->
+<audio id="bg"></audio>
+
+<script src="https://unpkg.com/p5@1.9.0/lib/p5.min.js"></script>
+<script>
+/* --------------------------------------------------
+    🌷  T U L I P   G A R D E N   v11 (playlist)
+--------------------------------------------------*/
+
+const HER_NAME = "Your-Love";
+
+/* playlist ------------------------------------------------- */
+const SONGS = [
+'assets/music/song1.mp3',
+'assets/music/song2.mp3',
+'assets/music/song3.mp3',
+'assets/music/song4.mp3',
+'assets/music/song5.mp3'
+];
+const bgAudio   = document.getElementById('bg');
+let   trackIdx  = 0;
+bgAudio.volume  = 0.3;
+bgAudio.src     = SONGS[trackIdx];
+bgAudio.addEventListener('ended', () => {
+trackIdx = (trackIdx + 1) % SONGS.length;
+bgAudio.src = SONGS[trackIdx];
+bgAudio.play().catch(()=>{});
+});
+
+/* perspective & flower constants -------------------------- */
+const SPRITE_SCALE    = 0.20;
+const PERSPECTIVE_MIN = 0.30;
+const GROW_FRAMES     = 60;
+const SWAY_AMPL_deg   = 4;
+
+/* background & horizon */
+const SKY_W = 128, SKY_H = 80;
+const HORIZ_PX = 35, HORIZ_RATIO = HORIZ_PX / SKY_H;
+
+let skyPix, bgImg, horizonY;
+
+/* flower assets */
+const FLOWER_BASES    = [11, 21, 31];
+const SIZE_MULTIPLIER = { 21: 1.30 };
+let flowerSets = [];
+
+function preload(){
+bgImg = loadImage('assets/environment/bg.png');
+for(const base of FLOWER_BASES){
+const frames=[]; for(let i=base;i<base+5;i++) frames.push(loadImage(`assets/flowers/${i}.png`));
+flowerSets.push({base,frames});
+}
+}
+
+/* entities */
+let tulips=[], fireflies=[], secretIdx=null;
+
+function setup(){
+createCanvas(windowWidth,windowHeight); noSmooth();
+colorMode(HSL,360,100,100,1);
+
+skyPix = createGraphics(SKY_W,SKY_H); skyPix.noSmooth();
+if(bgImg) skyPix.image(bgImg,0,0,SKY_W,SKY_H);
+
+horizonY = HORIZ_RATIO * height;
+positionMessage();
+}
+
+function draw(){
+image(skyPix,0,0,width,height);
+for(const t of tulips) t.display();
+for(const f of fireflies){ f.update(); f.display(); }
+}
+
+function mousePressed(){
+if(mouseY < horizonY) return;
+
+const t = new Tulip(mouseX,mouseY);
+tulips.push(t);
+
+if(t.base === 31) showTulipMessage();
+
+if(secretIdx===null) secretIdx=tulips.length-1;
+if(tulips.length-1===secretIdx)
+
+/* first click also satisfies the browser’s user-gesture requirement */
+bgAudio.play().catch(()=>{});
+}
+
+/* glowing message helpers */
+function showTulipMessage(){
+const el=document.getElementById('msg');
+el.textContent='I LOVE YOU ADYA <3';
+el.style.opacity=1;
+clearTimeout(showTulipMessage.timer);
+showTulipMessage.timer=setTimeout(()=>el.style.opacity=0,2000);
+}
+function positionMessage(){
+const el=document.getElementById('msg');
+el.style.top=(horizonY*0.5-20)+'px';
+}
+
+/* Tulip class */
+class Tulip{
+constructor(x,y){
+this.x=x; this.baseY=y;
+this.birth=frameCount; this.seed=random(TWO_PI);
+this.flipped=random()<0.5;
+const pick=random(flowerSets);
+this.frames=pick.frames; this.base=pick.base;
+this.sizeMul=SIZE_MULTIPLIER[this.base]||1;
+}
+get scaleFactor(){
+const f=constrain((this.baseY-horizonY)/(height-horizonY),0,1);
+return this.sizeMul*SPRITE_SCALE*(PERSPECTIVE_MIN+(1-PERSPECTIVE_MIN)*f);
+}
+display(){
+const age=frameCount-this.birth;
+const idx=constrain(floor(map(age,0,GROW_FRAMES,0,this.frames.length)),
+                    0,this.frames.length-1);
+const img=this.frames[idx]; if(!img) return;
+const ang=radians(SWAY_AMPL_deg)*sin(frameCount*0.02+this.seed);
+const s=this.scaleFactor,w=img.width*s,h=img.height*s;
+push();translate(this.x,this.baseY); noStroke(); fill(0,0,0,0.35);
+    rectMode(CENTER); rect(0,0,w*0.6,4); pop();
+push();translate(this.x,this.baseY); rotate(ang);
+    if(this.flipped) scale(-1,1);
+    imageMode(CENTER); image(img,0,-h/2,w,h); pop();
+}
+}
+
+/* fireflies */
+class Firefly{
+constructor(){ this.x=random(width); this.y=random(height*0.7); this.d=random(2,5); }
+update(){ this.x=(this.x+random(-1,1)+width)%width;
+        this.y=(this.y+random(-.6,.6)+height*0.7)%(height*0.7); }
+display(){ noStroke(); fill(60,100,80,0.8); ellipse(this.x,this.y,this.d); }
+}
+
+function windowResized(){
+resizeCanvas(windowWidth,windowHeight);
+horizonY = HORIZ_RATIO * height;
+positionMessage();
+}
+</script>
+</body>
+</html>
