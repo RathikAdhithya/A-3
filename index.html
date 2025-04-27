@@ -19,7 +19,7 @@ color:#fafafa;pointer-events:none;
 position:fixed;left:0;width:100%;
 text-align:center;font-family:'Press Start 2P',monospace;
 /* clamp keeps it big on desktop but sane on phones */
-font-size:clamp(16px, 10vw, 100px);
+font-size:clamp(16px, 10vw, 60px);
 letter-spacing:1px;
 color:#ff3030;
 text-shadow:0 0 16px #000,0 0 16px #ff3030;
@@ -136,7 +136,7 @@ bgAudio.play().catch(()=>{}); firstGestureDone = true;
 /* --------------- message helpers ---------------- */
 function showTulipMessage(){
 const el=document.getElementById('msg');
-el.textContent = 'I LOVE YOU ADYA ♥';
+el.textContent = 'I LOVE YOU ADYA';
 el.style.opacity = 1;
 clearTimeout(showTulipMessage.timer);
 showTulipMessage.timer = setTimeout(()=> el.style.opacity = 0, 2000);
