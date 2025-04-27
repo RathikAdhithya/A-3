@@ -10,17 +10,17 @@
 <style>
 html,body{margin:0;padding:0;overflow:hidden;background:#000;}
 canvas{display:block;image-rendering:pixelated;}
+
 #hint{
 position:fixed;bottom:10px;width:100%;
 text-align:center;font-family:sans-serif;font-size:14px;
 color:#fafafa;pointer-events:none;
 }
+
 #msg{
 position:fixed;left:0;width:100%;
 text-align:center;font-family:'Press Start 2P',monospace;
-/* clamp keeps it big on desktop but sane on phones */
-font-size:clamp(16px, 10vw, 60px);
-letter-spacing:1px;
+font-size:clamp(20px,10vw,80px);      /* fallback */
 color:#d30101;
 text-shadow:0 0 16px #000,0 0 16px #ff0000;
 pointer-events:none;
@@ -38,11 +38,10 @@ opacity:0;transition:opacity .2s;
 <script src="https://unpkg.com/p5@1.9.0/lib/p5.min.js"></script>
 <script>
 /* --------------------------------------------------
-        🌷  UNIVERSAL   T U L I P   GARDEN
+    🌷  UNIVERSAL TULIP GARDEN  vFinal
 --------------------------------------------------*/
-const HER_NAME = 'Your-Love';
 
-/* ------------------- playlist ------------------- */
+/* ───────────── 1. Audio setup ───────────── */
 const SONGS = [
 'assets/music/song1.mp3',
 'assets/music/song2.mp3',
@@ -53,20 +52,25 @@ const SONGS = [
 let trackIdx = 0;
 const bgAudio = document.getElementById('bg');
 bgAudio.volume = 0.35;
-bgAudio.src = SONGS[0];
-
-bgAudio.addEventListener('ended', nextTrack);
-function nextTrack(){
+bgAudio.src    = SONGS[0];
+bgAudio.addEventListener('ended', () => {
 trackIdx = (trackIdx + 1) % SONGS.length;
 bgAudio.src = SONGS[trackIdx];
-/* wait for Android to buffer before replaying */
-bgAudio.addEventListener('canplaythrough', playAfterBuffer, { once:true });
 bgAudio.load();
-}
-function playAfterBuffer(){ bgAudio.play().catch(()=>{}); }
+bgAudio.addEventListener('canplaythrough', () => bgAudio.play().catch(()=>{}), { once:true });
+});
 
-/* ---------------- scene constants --------------- */
-let SPRITE_SCALE = 0.20;            // updated responsively in resize()
+/* single unlock for every platform */
+function unlockAudioOnce(){
+bgAudio.play().catch(()=>{});     // on Android this marks audio as “user-activated”
+window.removeEventListener('touchend', unlockAudioOnce);
+window.removeEventListener('click',    unlockAudioOnce);
+}
+window.addEventListener('touchend', unlockAudioOnce, { once:true });
+window.addEventListener('click',    unlockAudioOnce, { once:true });
+
+/* ───────────── 2. Scene constants ───────────── */
+let SPRITE_SCALE = 0.18;                 // updated per resize
 const PERSPECTIVE_MIN = 0.30;
 const GROW_FRAMES = 60;
 const SWAY_AMPL_deg = 4;
@@ -74,12 +78,16 @@ const SWAY_AMPL_deg = 4;
 const SKY_W = 128, SKY_H = 80;
 const HORIZ_PX = 35, HORIZ_RATIO = HORIZ_PX / SKY_H;
 
-/* ---------------- images & data ----------------- */
-let skyPix, bgImg, horizonY;
-const FLOWER_BASES = [11, 21, 31];   // 31-35 → tulip
-const SIZE_MULTIPLIER = { 21: 1.30 };
+/* flowers */
+const FLOWER_BASES    = [11, 21, 31];
+const SIZE_MULTIPLIER = { 21: 1.30 };    /* bush */
 let flowerSets = [];
 
+let skyPix, bgImg, horizonY;
+let tulips=[], fireflies=[];
+let secretIdx=null;
+
+/* ───────────── 3. p5 preload ───────────── */
 function preload(){
 bgImg = loadImage('assets/environment/bg.png');
 for(const base of FLOWER_BASES){
@@ -89,67 +97,58 @@ flowerSets.push({ base, frames });
 }
 }
 
-/* ----------------- state ------------------------ */
-let tulips=[], fireflies=[];
-let firstGestureDone=false, secretIdx=null;
-
-/* ------------------ setup ----------------------- */
+/* ───────────── 4. p5 setup ───────────── */
 function setup(){
-createCanvas(windowWidth, windowHeight); noSmooth();
+createCanvas(windowWidth,windowHeight); noSmooth();
 colorMode(HSL,360,100,100,1);
 
-skyPix = createGraphics(SKY_W, SKY_H); skyPix.noSmooth();
+skyPix = createGraphics(SKY_W,S
+
+KY_H); skyPix.noSmooth();
 if(bgImg) skyPix.image(bgImg,0,0,SKY_W,SKY_H);
 
 adjustLayout();
 }
 
-/* ------------------ draw ------------------------ */
+/* ───────────── 5. draw ───────────── */
 function draw(){
 image(skyPix,0,0,width,height);
 for(const t of tulips) t.display();
 for(const f of fireflies){ f.update(); f.display(); }
 }
 
-/* ------------- planting helper ------------------ */
-function plantFlower(x,y){
-const t = new Tulip(x,y); tulips.push(t);
-if(t.base === 31) showTulipMessage();
-if(secretIdx===null) secretIdx = tulips.length-1;
-}
-
-/* ---------------- touch / mouse ----------------- */
+/* ───────────── 6. input ───────────── */
 function touchStarted(){
 if(touches.length && touches[0].y >= horizonY) plantFlower(touches[0].x, touches[0].y);
-startAudioOnce(); return false;                // stops duplicate mouse
+return false;     // stop duplicate mousePressed
 }
 function mousePressed(){
 if(mouseY >= horizonY) plantFlower(mouseX, mouseY);
-startAudioOnce();
-}
-function startAudioOnce(){
-if(!firstGestureDone){
-bgAudio.play().catch(()=>{}); firstGestureDone = true;
-}
 }
 
-/* --------------- message helpers ---------------- */
+function plantFlower(x,y){
+const t = new Tulip(x,y); tulips.push(t);
+if(t.base === 31) showTulipMessage();
+if(secretIdx===null) secretIdx=tulips.length-1;
+}
+
+/* ───────────── 7. helpers ───────────── */
 function showTulipMessage(){
 const el=document.getElementById('msg');
-el.textContent = 'I LOVE YOU ADYA';
-el.style.opacity = 1;
+el.textContent='I LOVE YOU ADYA';
+el.style.opacity=1;
 clearTimeout(showTulipMessage.timer);
-showTulipMessage.timer = setTimeout(()=> el.style.opacity = 0, 2000);
+showTulipMessage.timer=setTimeout(()=>el.style.opacity=0,2000);
 }
 function adjustLayout(){
 horizonY = HORIZ_RATIO * height;
-/* place message at mid-sky */
-document.getElementById('msg').style.top = (horizonY*0.5 - 0.1*height)+'px';
-/* responsive sprite baseline: 20 % @ 1080 px tall */
-SPRITE_SCALE = 0.20 * (height / 1080);
+document.getElementById('msg').style.top = (horizonY*0.5 - 0.12*height) + 'px';
+
+/* scale based on smaller dimension */
+SPRITE_SCALE = 0.20 * (Math.min(width,height) / 1080);
 }
 
-/* ---------------- classes ----------------------- */
+/* ───────────── 8. classes ───────────── */
 class Tulip{
 constructor(x,y){
 this.x=x; this.baseY=y;
@@ -161,34 +160,34 @@ this.sizeMul=SIZE_MULTIPLIER[this.base]||1;
 }
 get scaleFactor(){
 const f=constrain((this.baseY-horizonY)/(height-horizonY),0,1);
-return this.sizeMul *
-        SPRITE_SCALE * (PERSPECTIVE_MIN + (1-PERSPECTIVE_MIN)*f);
+return this.sizeMul * SPRITE_SCALE *
+        (PERSPECTIVE_MIN + (1-PERSPECTIVE_MIN)*f);
 }
 display(){
 const age=frameCount-this.birth;
-const idx=constrain(floor(map(age,0,GROW_FRAMES,0,this.frames.length)),
-                    0,this.frames.length-1);
+const idx=constrain(floor(map(age,0,GROW_FRAMES,0,this.frames.length)),0,this.frames.length-1);
 const img=this.frames[idx]; if(!img) return;
 const ang=radians(SWAY_AMPL_deg)*sin(frameCount*0.02+this.seed);
 const s=this.scaleFactor, w=img.width*s, h=img.height*s;
 
-push(); translate(this.x,this.baseY);
+push();translate(this.x,this.baseY);
     noStroke(); fill(0,0,0,0.35);
-    rectMode(CENTER); rect(0,0,w*0.6,4); pop();
-
-push(); translate(this.x,this.baseY); rotate(ang);
+    rectMode(CENTER); rect(0,0,w*0.6,4);
+pop();
+push();translate(this.x,this.baseY); rotate(ang);
     if(this.flipped) scale(-1,1);
-    imageMode(CENTER); image(img,0,-h/2,w,h); pop();
+    imageMode(CENTER); image(img,0,-h/2,w,h);
+pop();
 }
 }
 class Firefly{
-constructor(){ this.x=random(width); this.y=random(height*0.7); this.d=random(2,5); }
+constructor(){ this.x=random(width); this.y=random(height*0.7); this.d=random(2,5);}
 update(){ this.x=(this.x+random(-1,1)+width)%width;
-        this.y=(this.y+random(-.6,.6)+height*0.7)%(height*0.7); }
-display(){ noStroke(); fill(60,100,80,0.8); ellipse(this.x,this.y,this.d); }
+        this.y=(this.y+random(-.6,.6)+height*0.7)%(height*0.7);}
+display(){ noStroke(); fill(60,100,80,0.8); ellipse(this.x,this.y,this.d);}
 }
 
-/* --------------- resize ------------------------- */
+/* ───────────── 9. resize ───────────── */
 function windowResized(){
 resizeCanvas(windowWidth,windowHeight);
 adjustLayout();
